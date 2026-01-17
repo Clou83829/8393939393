@@ -1,6 +1,3 @@
-# Простая система бронирования
-# Сделано как будто студентом
-
 class User:
     def __init__(self, user_id, name):
         self.id = user_id
@@ -17,8 +14,8 @@ class Seat:
         self.user = None
     
     def __str__(self):
-        user_name = self.user.name if self.user else "нет"
-        return f"Место {self.id}: {self.status}, занято: {user_name}"
+        user_name = self.user.name if self.user else "никто"
+        return f"место {self.id}: {self.status} ({user_name})"
 
 class EventSession:
     def __init__(self, session_id, time):
@@ -26,21 +23,18 @@ class EventSession:
         self.time = time
         self.seats = {}
         
-        # создаем 6 мест
         for i in range(1, 7):
             seat_id = f"A{i}"
             self.seats[seat_id] = Seat(seat_id)
     
     def show_seats(self):
-        print(f"\nСеанс: {self.id}, время: {self.time}")
-        print("Места в зале:")
+        print(f"\nсеанс: {self.id}, время: {self.time}")
         for seat in self.seats.values():
             print(f"  {seat}")
     
     def get_seat(self, seat_id):
         return self.seats.get(seat_id)
 
-# команды (простые функции, не полноценный паттерн)
 class BookingSystem:
     def __init__(self):
         self.history = []
@@ -48,17 +42,15 @@ class BookingSystem:
     def reserve_seat(self, session, seat_id, user):
         seat = session.get_seat(seat_id)
         if seat and seat.status == Seat.FREE:
-            # запоминаем старое состояние
             old_state = (seat.status, seat.user)
             self.history.append(("reserve", seat_id, old_state))
             
-            # меняем
             seat.status = Seat.RESERVED
             seat.user = user
             print(f"{user.name} забронировал место {seat_id}")
             return True
         else:
-            print(f"Не удалось забронировать {seat_id}")
+            print(f"не получилось забронировать {seat_id}")
             return False
     
     def cancel_reservation(self, session, seat_id, user):
@@ -69,10 +61,10 @@ class BookingSystem:
             
             seat.status = Seat.FREE
             seat.user = None
-            print(f"{user.name} отменил бронь места {seat_id}")
+            print(f"{user.name} отменил бронь {seat_id}")
             return True
         else:
-            print(f"Не удалось отменить бронь {seat_id}")
+            print(f"не получилось отменить бронь {seat_id}")
             return False
     
     def buy_ticket(self, session, seat_id, user):
@@ -82,72 +74,104 @@ class BookingSystem:
             self.history.append(("buy", seat_id, old_state))
             
             seat.status = Seat.SOLD
-            print(f"{user.name} купил билет на место {seat_id}")
+            print(f"{user.name} купил билет на {seat_id}")
             return True
         else:
-            print(f"Не удалось купить билет на {seat_id}")
+            print(f"не получилось купить билет на {seat_id}")
+            return False
+    
+    def change_seat(self, session, old_seat_id, new_seat_id, user):
+        old_seat = session.get_seat(old_seat_id)
+        new_seat = session.get_seat(new_seat_id)
+        
+        if (old_seat and old_seat.status == Seat.RESERVED and 
+            old_seat.user and old_seat.user.id == user.id and
+            new_seat and new_seat.status == Seat.FREE):
+            
+            old_state = (old_seat.status, old_seat.user, new_seat.status, new_seat.user)
+            self.history.append(("change", old_seat_id, new_seat_id, old_state))
+            
+            old_seat.status = Seat.FREE
+            old_seat.user = None
+            
+            new_seat.status = Seat.RESERVED
+            new_seat.user = user
+            
+            print(f"{user.name} пересел с {old_seat_id} на {new_seat_id}")
+            return True
+        else:
+            print(f"не получилось сменить место")
             return False
     
     def undo_last(self, session):
         if not self.history:
-            print("Нечего отменять")
+            print("нечего отменять")
             return
         
         last_action = self.history.pop()
-        action_type, seat_id, old_state = last_action
-        seat = session.get_seat(seat_id)
         
-        if seat:
-            old_status, old_user = old_state
-            seat.status = old_status
-            seat.user = old_user
-            print(f"Отмена: {action_type} для места {seat_id}")
+        if last_action[0] == "change":
+            action_type, old_seat_id, new_seat_id, old_state = last_action
+            old_seat = session.get_seat(old_seat_id)
+            new_seat = session.get_seat(new_seat_id)
+            
+            if old_seat and new_seat:
+                old_status, old_user, new_status, new_user = old_state
+                old_seat.status = old_status
+                old_seat.user = old_user
+                new_seat.status = new_status
+                new_seat.user = new_user
+                print(f"отмена: смена места")
+        else:
+            action_type, seat_id, old_state = last_action
+            seat = session.get_seat(seat_id)
+            
+            if seat:
+                old_status, old_user = old_state
+                seat.status = old_status
+                seat.user = old_user
+                print(f"отмена: {action_type} для места {seat_id}")
 
-# главная программа
 def main():
-    print("система бронирования билетов")
+    print("программа бронирования билетов")
     print("=" * 30)
     
-    # создаем пользователей
     user1 = User("1", "иван")
     user2 = User("2", "мария")
     
-    # создаем сеанс
-    movie = EventSession("фильм 'матрица'", "20:00")
-    
-    # создаем систему бронирования
+    session = EventSession("концерт", "19:00")
     system = BookingSystem()
     
-    # показываем начальное состояние
     print("\nначальное состояние:")
-    movie.show_seats()
+    session.show_seats()
     
-    # тестируем
     print("\n--- тест 1: бронирование ---")
-    system.reserve_seat(movie, "A1", user1)
-    system.reserve_seat(movie, "A2", user2)
-    movie.show_seats()
+    system.reserve_seat(session, "A1", user1)
+    system.reserve_seat(session, "A2", user2)
+    session.show_seats()
     
     print("\n--- тест 2: покупка билета ---")
-    system.buy_ticket(movie, "A1", user1)
-    movie.show_seats()
+    system.buy_ticket(session, "A1", user1)
+    session.show_seats()
     
-    print("\n--- тест 3: отмена брони ---")
-    system.cancel_reservation(movie, "A2", user2)
-    movie.show_seats()
+    print("\n--- тест 3: отмена покупки ---")
+    system.undo_last(session)
+    session.show_seats()
     
-    print("\n--- тест 4: отмена последней операции ---")
-    system.undo_last(movie)
-    movie.show_seats()
+    print("\n--- тест 4: смена места ---")
+    system.change_seat(session, "A2", "A3", user2)
+    session.show_seats()
     
-    print("\n--- тест 5: ошибки ---")
-    system.buy_ticket(movie, "A3", user1)  # место свободное
-    system.reserve_seat(movie, "A1", user2)  # место уже занято
+    print("\n--- тест 5: отмена брони ---")
+    system.cancel_reservation(session, "A3", user2)
+    session.show_seats()
+    
+    print("\n--- тест 6: ошибки ---")
+    system.buy_ticket(session, "A5", user1)
+    system.reserve_seat(session, "A1", user2)
     
     print("\nконечное состояние:")
-    movie.show_seats()
-    
-    print("\nвсе операции завершены")
+    session.show_seats()
 
 if __name__ == "__main__":
     main()
